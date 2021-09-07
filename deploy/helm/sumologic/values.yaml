@@ -2462,8 +2462,8 @@ otelcol:
 
   statefulset:
     image:
-      repository: public.ecr.aws/sumologic/sumologic-otel-collector
-      tag: 0.0.18
+      repository: ghcr.io/kkujawa-sumo/sumologic-otel-collector-local
+      tag: v0.0.10-122-g894ff0d
       pullPolicy: IfNotPresent
   metadata:
     metrics:
@@ -2504,15 +2504,30 @@ otelcol:
         extensions:
           health_check: {}
         exporters:
+          logging:
+            loglevel: debug
+            sampling_initial: 5
+            sampling_thereafter: 200
+          ## Configuration for Sumo Logic Exporter
+          ## see:  https://github.com/SumoLogic/sumologic-otel-collector/blob/main/pkg/exporter/sumologicexporter/README.md
           sumologic:
+            # format to use when sending metrics to Sumo, default = otlp,
+            # NOTE: only `otlp` is supported when used with sumologicextension
             metric_format: prometheus
+            ## unique URL generated for your HTTP Source, this is the address to send data to
+            ## deprecated, please use sumologicextension to manage your endpoints
+            ## if sumologicextension is not being used, the endpoint is required
             endpoint: ${SUMO_ENDPOINT_DEFAULT_METRICS_SOURCE}
+            # list of regexes for attributes which should be sent as metadata,
+            # use OpenTelemetry attribute names,
+            # please see also "Attribute translation" documentation:
+            # https://github.com/SumoLogic/sumologic-otel-collector/blob/main/pkg/exporter/sumologicexporter/README.md#attribute-translation
             metadata_attributes:
-              - k8s.*
               - pod_.*
               - namespace_.*
 
-              - Deployment
+              - deployment
+              - namespace
               - container
               - node
               - pod
@@ -2588,10 +2603,11 @@ otelcol:
             source_category: '{{ .Values.fluentd.logs.containers.sourceCategory | quote }}'
             source_category_prefix: '{{ .Values.fluentd.logs.containers.sourceCategoryPrefix | quote }}'
             source_category_replace_dash: '{{ .Values.fluentd.logs.containers.sourceCategoryReplaceDash | quote }}'
-            exclude_namespace_regex: '{{ include "fluentd.excludeNamespaces" . }}'
-            exclude_pod_regex: '{{ .Values.fluentd.logs.containers.excludePodRegex | quote }}'
-            exclude_container_regex: '{{ .Values.fluentd.logs.containers.excludeContainerRegex | quote }}'
-            exclude_host_regex: '{{ .Values.fluentd.logs.containers.excludeHostRegex | quote }}'
+            exclude:
+              namespace: '{{ include "fluentd.excludeNamespaces" . }}'
+              pod: '{{ .Values.fluentd.logs.containers.excludePodRegex | quote }}'
+              container: '{{ .Values.fluentd.logs.containers.excludeContainerRegex | quote }}'
+              host: '{{ .Values.fluentd.logs.containers.excludeHostRegex | quote }}'
             annotation_prefix: "k8s.pod.annotation."
             pod_template_hash_key: "k8s.pod.label.pod-template-hash"
             pod_name_key: "k8s.pod.pod_name"
@@ -2615,6 +2631,7 @@ otelcol:
                 - batch
               exporters:
                 - sumologic
+                - logging
 
   deployment:
     nodeSelector: {}
